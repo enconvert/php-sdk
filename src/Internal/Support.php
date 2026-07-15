@@ -6,8 +6,10 @@ namespace Enconvert\Internal;
 
 use Enconvert\Exception\ApiException;
 use Enconvert\Exception\AuthenticationException;
+use Enconvert\Exception\EnconvertException;
 use Enconvert\Exception\QuotaException;
 use Enconvert\Exception\RateLimitException;
+use Enconvert\Formats;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -155,5 +157,43 @@ final class Support
     public static function newJobId(): string
     {
         return bin2hex(random_bytes(16));
+    }
+
+    /**
+     * Normalize a `FileInput` into `{bytes, filename, contentType}`. Shared by
+     * the V1 file conversions (Client) and the V2 file-ingest path (V2).
+     *
+     * @param string|array{data: string, filename: string, contentType?: string} $file
+     * @return array{bytes: string, filename: string, contentType: string}
+     */
+    public static function toFilePart(string|array $file): array
+    {
+        if (is_string($file)) {
+            if (!is_file($file)) {
+                throw new EnconvertException("Enconvert: file not found at path '{$file}'");
+            }
+            $bytes = file_get_contents($file);
+            $filename = basename($file);
+
+            return [
+                'bytes' => $bytes === false ? '' : $bytes,
+                'filename' => $filename,
+                'contentType' => Formats::mimeFor($filename),
+            ];
+        }
+
+        if (isset($file['data']) && isset($file['filename'])) {
+            $filename = $file['filename'];
+
+            return [
+                'bytes' => $file['data'],
+                'filename' => $filename,
+                'contentType' => $file['contentType'] ?? Formats::mimeFor($filename),
+            ];
+        }
+
+        throw new EnconvertException(
+            "Unsupported file input. Pass a path string, or ['data' => ..., 'filename' => ..., 'contentType' => ...]."
+        );
     }
 }

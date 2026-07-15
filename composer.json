@@ -1,6 +1,6 @@
 {
     "name": "enconvert/enconvert-php",
-    "description": "PHP SDK for the Enconvert file conversion API",
+    "description": "PHP SDK for Enconvert — read any page or file into agent-ready Markdown, JSON, or screenshots (scored 0.0-1.0), plus file conversion. V2 perception + MCP.",
     "type": "library",
     "license": "MIT",
     "keywords": [

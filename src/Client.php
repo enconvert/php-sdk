@@ -194,7 +194,7 @@ final class Client
      */
     public function convertImage(string|array $file, array $opts): ConversionResult
     {
-        $part = $this->toFilePart($file);
+        $part = Support::toFilePart($file);
         $inputFormat = Formats::resolveInputFormat($part['filename'], Formats::IMAGE_FORMATS);
         $outputFormat = Formats::normalizeOutputFormat($opts['outputFormat']);
         $endpoint = '/v1/convert/' . Formats::assertConversionImplemented($inputFormat, $outputFormat);
@@ -219,12 +219,59 @@ final class Client
      */
     public function convertDocument(string|array $file, array $opts = []): ConversionResult
     {
-        $part = $this->toFilePart($file);
+        $part = Support::toFilePart($file);
         $inputFormat = Formats::resolveInputFormat($part['filename'], Formats::DOCUMENT_FORMATS);
         $outputFormat = Formats::normalizeOutputFormat($opts['outputFormat'] ?? 'pdf');
         $endpoint = '/v1/convert/' . Formats::assertConversionImplemented($inputFormat, $outputFormat);
 
         $data = $this->postFile($endpoint, $part, [
+            'outputFilename' => $opts['outputFilename'] ?? null,
+            'pdfOptions' => $opts['pdfOptions'] ?? null,
+        ]);
+        $result = ConversionResult::fromArray($data);
+        if (!empty($opts['saveTo'])) {
+            $this->download($result->presignedUrl, $opts['saveTo']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert an uploaded file of (almost) any document format to clean Markdown
+     * — PDF, DOCX, PPTX, XLSX, CSV, HTML, EPUB, TXT/MD, and legacy/ODF office.
+     * The format is auto-detected server-side; a RAG-ingestion building block.
+     * Images are not supported.
+     *
+     * @param string|array{data: string, filename: string, contentType?: string} $file
+     * @param array{saveTo?: string, outputFilename?: string} $opts
+     */
+    public function convertToMarkdown(string|array $file, array $opts = []): ConversionResult
+    {
+        $part = Support::toFilePart($file);
+        $data = $this->postFile('/v1/convert/anything-to-markdown', $part, [
+            'outputFilename' => $opts['outputFilename'] ?? null,
+        ]);
+        $result = ConversionResult::fromArray($data);
+        if (!empty($opts['saveTo'])) {
+            $this->download($result->presignedUrl, $opts['saveTo']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert an uploaded file of (almost) any format to PDF — office/ODF/Pages/
+     * Numbers/RTF/CSV, HTML, Markdown, text, raster images, SVG, EPUB, or an
+     * existing PDF (passthrough/normalise). The format is auto-detected
+     * server-side. Only `pdfOptions.grayscale` is honored on this endpoint.
+     *
+     * @param string|array{data: string, filename: string, contentType?: string} $file
+     * @param array{saveTo?: string, outputFilename?: string, pdfOptions?: array<string, mixed>} $opts
+     */
+    public function convertToPdf(string|array $file, array $opts = []): ConversionResult
+    {
+        $part = Support::toFilePart($file);
+        $data = $this->postFile('/v1/convert/anything-to-pdf', $part, [
             'outputFilename' => $opts['outputFilename'] ?? null,
             'pdfOptions' => $opts['pdfOptions'] ?? null,
         ]);
@@ -420,43 +467,6 @@ final class Client
 
             throw new ApiException($resp->getStatusCode(), 'Failed to download: ' . $resp->getReasonPhrase());
         }
-    }
-
-    /**
-     * Normalize a `FileInput` into `{bytes, filename, contentType}`.
-     *
-     * @param string|array{data: string, filename: string, contentType?: string} $file
-     * @return array{bytes: string, filename: string, contentType: string}
-     */
-    private function toFilePart(string|array $file): array
-    {
-        if (is_string($file)) {
-            if (!is_file($file)) {
-                throw new EnconvertException("Enconvert: file not found at path '{$file}'");
-            }
-            $bytes = file_get_contents($file);
-            $filename = basename($file);
-
-            return [
-                'bytes' => $bytes === false ? '' : $bytes,
-                'filename' => $filename,
-                'contentType' => Formats::mimeFor($filename),
-            ];
-        }
-
-        if (isset($file['data']) && isset($file['filename'])) {
-            $filename = $file['filename'];
-
-            return [
-                'bytes' => $file['data'],
-                'filename' => $filename,
-                'contentType' => $file['contentType'] ?? Formats::mimeFor($filename),
-            ];
-        }
-
-        throw new EnconvertException(
-            "Unsupported file input. Pass a path string, or ['data' => ..., 'filename' => ..., 'contentType' => ...]."
-        );
     }
 
     /** Centralized, authenticated, timeout-wrapped request. */

@@ -13,7 +13,7 @@ final class IngestJob
         public readonly string $jobId,
         /** "queued" | "discovering" | "processing" | "completed" | "failed" | "canceled". */
         public readonly string $status,
-        /** "urls" | "sitemap" | "crawl". */
+        /** "urls" | "sitemap" | "crawl" | "files". */
         public readonly string $mode,
         public readonly int|float $pagesDiscovered,
         public readonly int|float $pagesProcessed,

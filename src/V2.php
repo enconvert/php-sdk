@@ -269,6 +269,50 @@ final class V2
     }
 
     /**
+     * Ingest one or more uploaded FILES into RAG-ready JSONL chunks — the file
+     * counterpart of ingest(), sharing the same job lifecycle (mode "files").
+     * PDF, DOCX, PPTX, XLSX, CSV, HTML, EPUB, TXT/MD and legacy/ODF office are
+     * accepted. Always asynchronous; poll getIngestJob or configure a webhook.
+     *
+     * @param array<int, string|array{data: string, filename: string, contentType?: string}> $files
+     * @param array{chunk?: array{maxWords?: int, sentenceOverlap?: int}, webhookUrl?: string} $opts
+     */
+    public function ingestFiles(array $files, array $opts = []): IngestJob
+    {
+        if (count($files) === 0) {
+            throw new EnconvertException('ingestFiles: provide at least one file');
+        }
+
+        $multipart = [];
+        foreach ($files as $file) {
+            $part = Support::toFilePart($file);
+            $multipart[] = [
+                'name' => 'files',
+                'contents' => $part['bytes'],
+                'filename' => $part['filename'],
+                'headers' => ['Content-Type' => $part['contentType']],
+            ];
+        }
+        if (Support::isSet($opts, 'chunk')) {
+            if (Support::isSet($opts['chunk'], 'maxWords')) {
+                $multipart[] = ['name' => 'max_words', 'contents' => (string) $opts['chunk']['maxWords']];
+            }
+            if (Support::isSet($opts['chunk'], 'sentenceOverlap')) {
+                $multipart[] = ['name' => 'sentence_overlap', 'contents' => (string) $opts['chunk']['sentenceOverlap']];
+            }
+        }
+        if (Support::isSet($opts, 'webhookUrl')) {
+            $multipart[] = ['name' => 'webhook_url', 'contents' => $opts['webhookUrl']];
+        }
+
+        $resp = ($this->request)('POST', '/v2/ingest/files', ['multipart' => $multipart]);
+        Support::raiseForStatus($resp);
+        $decoded = json_decode((string) $resp->getBody(), true);
+
+        return IngestJob::fromArray(is_array($decoded) ? $decoded : []);
+    }
+
+    /**
      * List ingest jobs, newest first.
      *
      * @param array{skip?: int, limit?: int} $opts
