@@ -1,0 +1,45 @@
+{
+    "name": "enconvert/enconvert-php",
+    "description": "PHP SDK for the Enconvert file conversion API",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "enconvert",
+        "pdf",
+        "screenshot",
+        "conversion",
+        "html-to-pdf",
+        "url-to-pdf",
+        "url-to-screenshot",
+        "url-to-markdown",
+        "image-convert",
+        "document-convert",
+        "heic-to-webp",
+        "docx-to-pdf",
+        "api",
+        "sdk"
+    ],
+    "homepage": "https://enconvert.com",
+    "authors": [
+        {
+            "name": "Enconvert",
+            "email": "support@enconvert.com",
+            "homepage": "https://enconvert.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/conversionapi/php-sdk/issues",
+        "source": "https://github.com/conversionapi/php-sdk"
+    },
+    "require": {
+        "php": ">=8.1",
+        "guzzlehttp/guzzle": "^7.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Enconvert\\": "src/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
