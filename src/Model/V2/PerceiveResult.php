@@ -14,6 +14,11 @@ final class PerceiveResult
      * @param array<string, mixed>|null $structured Present when extract/schema
      *   was requested. Shape is caller-defined.
      * @param string[] $warnings
+     * @param array<string, int|float> $deductions Named render-quality
+     *   deductions that fired (e.g. ["http_error" => 0.7]). Empty on a clean
+     *   render.
+     * @param array<string, mixed>|null $optionsEcho Echo of the request options
+     *   the server honoured (secrets redacted to booleans).
      */
     public function __construct(
         public readonly string $operationId,
@@ -34,6 +39,10 @@ final class PerceiveResult
         public readonly int|float|null $durationMs,
         public readonly ?string $error,
         public readonly array $warnings,
+        /** HTTP status of the final main-document response (e.g. 200, 404). */
+        public readonly int|float|null $statusCode,
+        public readonly array $deductions,
+        public readonly ?array $optionsEcho,
     ) {
     }
 
@@ -62,6 +71,9 @@ final class PerceiveResult
             durationMs: Support::optNum($d['duration_ms'] ?? null),
             error: Support::optStr($d['error'] ?? null),
             warnings: Support::strArr($d['warnings'] ?? null),
+            statusCode: Support::optNum($d['status_code'] ?? null),
+            deductions: Support::optObj($d['deductions'] ?? null) ?? [],
+            optionsEcho: Support::optObj($d['options_echo'] ?? null),
         );
     }
 }

@@ -13,6 +13,7 @@ use Enconvert\Model\V2\IngestJobList;
 use Enconvert\Model\V2\IngestJobSummary;
 use Enconvert\Model\V2\LookupResult;
 use Enconvert\Model\V2\PerceiveBatchResult;
+use Enconvert\Model\V2\PerceiveDirectResult;
 use Enconvert\Model\V2\PerceiveResult;
 use Enconvert\Model\V2\Watcher;
 use Enconvert\Model\V2\WatcherList;
@@ -62,6 +63,12 @@ final class V2
     {
         $body = self::serializePerceiveOptions($opts);
         $body['url'] = $url;
+        // directDownload is accepted by POST /v2/perceive only (the batch
+        // endpoint rejects it with 422), so it stays out of the shared
+        // options serializer.
+        if (Support::isSet($opts, 'directDownload')) {
+            $body['direct_download'] = $opts['directDownload'];
+        }
 
         return PerceiveResult::fromArray($this->post('/v2/perceive', $body));
     }
@@ -73,6 +80,49 @@ final class V2
     public function getPerceiveOperation(string $operationId): PerceiveResult
     {
         return PerceiveResult::fromArray($this->get('/v2/perceive/' . rawurlencode($operationId)));
+    }
+
+    /**
+     * Render one URL and stream the single requested artifact back as raw
+     * bytes (direct_download) instead of a JSON envelope with signed URLs.
+     * Exactly one artifact-producing output must be requested in
+     * $opts['outputs'] (markdown, html_cleaned, html_raw, screenshot,
+     * screenshot_full_page, pdf, links, images); the operation metadata
+     * arrives via response headers.
+     *
+     * @param array<string, mixed> $opts
+     */
+    public function perceiveDirect(string $url, array $opts = []): PerceiveDirectResult
+    {
+        self::assertOneArtifactOutput($opts['outputs'] ?? null);
+        $body = self::serializePerceiveOptions($opts);
+        $body['url'] = $url;
+        $body['direct_download'] = true;
+
+        $resp = ($this->request)('POST', '/v2/perceive', ['json' => $body]);
+        Support::raiseForStatus($resp);
+
+        return PerceiveDirectResult::fromResponse($resp);
+    }
+
+    /**
+     * Stream one stored artifact of an earlier perceive operation as raw
+     * bytes. $output may be omitted when the operation produced exactly one
+     * artifact (else the API answers 400 listing the available outputs);
+     * ApiException(410) means the artifact passed the plan's retention
+     * window.
+     */
+    public function downloadPerceiveArtifact(string $operationId, ?string $output = null): PerceiveDirectResult
+    {
+        $path = '/v2/perceive/' . rawurlencode($operationId) . '?direct_download=true';
+        if ($output !== null) {
+            $path .= '&output=' . rawurlencode($output);
+        }
+
+        $resp = ($this->request)('GET', $path, []);
+        Support::raiseForStatus($resp);
+
+        return PerceiveDirectResult::fromResponse($resp);
     }
 
     /**
@@ -527,6 +577,36 @@ final class V2
     // ------------------------------------------------------------------
 
     /**
+     * Artifact-producing perceive outputs accepted by perceiveDirect()
+     * ("structured" is inline-only and produces no artifact).
+     *
+     * @var string[]
+     */
+    private const ARTIFACT_OUTPUTS = [
+        'markdown',
+        'html_cleaned',
+        'html_raw',
+        'screenshot',
+        'screenshot_full_page',
+        'pdf',
+        'links',
+        'images',
+    ];
+
+    /** Enforce perceiveDirect()'s client-side contract: exactly one artifact-producing output requested. */
+    private static function assertOneArtifactOutput(mixed $outputs): void
+    {
+        $requested = is_array($outputs) ? $outputs : [];
+        $artifacts = array_intersect($requested, self::ARTIFACT_OUTPUTS);
+        if (count($artifacts) !== 1) {
+            throw new EnconvertException(
+                'perceiveDirect: request exactly one artifact-producing output ('
+                . implode(', ', self::ARTIFACT_OUTPUTS) . '); got ' . count($artifacts)
+            );
+        }
+    }
+
+    /**
      * @param array<string, mixed> $o
      * @return array<string, mixed>
      */
@@ -551,6 +631,7 @@ final class V2
             'blockResources' => 'block_resources',
             'respectRobots' => 'respect_robots',
             'mobile' => 'mobile',
+            'onlyMainContent' => 'only_main_content',
         ]);
         if (Support::isSet($o, 'pdfOptions')) {
             $out['pdf_options'] = Support::serializePdfOptions($o['pdfOptions']);

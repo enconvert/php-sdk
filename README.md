@@ -54,6 +54,16 @@ $batch = $client->v2->perceiveBatch(['https://a.com', 'https://b.com'], [
     'outputMode' => 'zip',
 ]);
 $done = $client->v2->getPerceiveBatch($batch->jobId);
+
+// Direct download — stream one artifact's raw bytes instead of the JSON envelope
+// (exactly one artifact-producing output; metadata arrives via headers):
+$direct = $client->v2->perceiveDirect('https://example.com', [
+    'outputs' => ['pdf'],
+]);
+file_put_contents($direct->filename, $direct->content);
+
+// Re-download a stored artifact later (output optional when the operation has only one):
+$saved = $client->v2->downloadPerceiveArtifact($direct->operationId, 'pdf');
 ```
 
 ### Discover — enumerate a site's URLs (no rendering)
